@@ -19,15 +19,15 @@ public protocol AnyEvent {
 }
 
 public extension AnyEvent {
-    @MainActor static func send(context: EventBus, _ action: Self, object: Any? = nil, file: String = #file, function: String = #function, line: Int = #line) {
+    @MainActor static func send(context: EventBus, _ action: Self, object: Any? = nil, file: String = #file, function: String = #function, line: Int = #line) where Self: Sendable {
         context.send(action, object: object, file: file, function: function, line: line)
     }
     
-    @MainActor static func sink(context: EventBus, _ receiveValue: @escaping (Self) -> Void) -> AnyCancellable {
+    @MainActor static func sink(context: EventBus, _ receiveValue: @escaping (Self) -> Void) -> AnyCancellable where Self: Sendable  {
         context.sink(receiveValue: receiveValue)
     }
     
-    @MainActor static func sink(context: EventBus, _ receiveValue: @escaping (Self, Any?) -> Void) -> AnyCancellable {
+    @MainActor static func sink(context: EventBus, _ receiveValue: @escaping (Self, Any?) -> Void) -> AnyCancellable where Self: Sendable  {
         context.sink(receiveValue: receiveValue)
     }
 }

@@ -9,7 +9,7 @@ import Foundation
 public enum RouterNavigator { }
 
 /// 普通路由，直接获取目标值
-public protocol AnyDirectRouter {
+public protocol AnyRouter {
     /// 注册路由
     @MainActor static func register(context: RouterHub, _ gotoHandle: @escaping (Self) -> Any?)
     /// 注销路由
@@ -18,7 +18,7 @@ public protocol AnyDirectRouter {
     @MainActor static func resolve<T>(context: RouterHub, _ route: Self) throws -> T
 }
 
-public extension AnyDirectRouter {
+public extension AnyRouter {
     @MainActor static func register(context: RouterHub, _ gotoHandle: @escaping (Self) -> Any?) {
         context.register(gotoHandle)
     }
@@ -29,30 +29,6 @@ public extension AnyDirectRouter {
     
     @MainActor static func resolve<T>(context: RouterHub, _ route: Self) throws -> T {
         try context.resolve(route)
-    }
-}
-
-/// 支持并发的路由
-public protocol AnyConcurrentRouter {
-    /// 注册路由
-    @MainActor static func register(context: RouterHub, _ gotoHandle: @escaping (Self) async -> Any?)
-    /// 注销路由
-    @MainActor static func unregister(context: RouterHub)
-    /// 获取路由值对应的对象
-    @MainActor static func resolve<T>(context: RouterHub, _ route: Self) async throws -> T
-}
-
-public extension AnyConcurrentRouter {
-    @MainActor static func register(context: RouterHub, _ gotoHandle: @escaping (Self) async -> Any?) {
-        context.register(gotoHandle)
-    }
-    
-    @MainActor static func unregister(context: RouterHub) {
-        context.unregister(Self.self)
-    }
-    
-    @MainActor static func resolve<T>(context: RouterHub, _ route: Self) async throws -> T {
-        try await context.resolve(route)
     }
 }
 
@@ -98,7 +74,7 @@ private extension RouterHub {
 private extension RouterHub {
     /// 注册路由
     /// - Parameter gotoHandles: 路由响应
-    func register<R>(_ gotoHandles: @escaping (R) async -> Any?) {
+    func register<R>(_ gotoHandles: @Sendable @escaping (R) -> Any?) {
         gotoMappings[ObjectIdentifier(R.self)] = ConcurrentReducer(block: gotoHandles)
     }
     
@@ -109,7 +85,7 @@ private extension RouterHub {
         guard let reducer = gotoMappings[ObjectIdentifier(R.self)] as? RouterHub.ConcurrentReducer<R> else {
             throw Reason.unRegisterEnumType
         }
-        guard let value = await reducer(rawValue) else {
+        guard let value = reducer(rawValue) else {
             throw Reason.rawMaterialUnqualified
         }
         guard let result = value as? T else {
@@ -155,10 +131,14 @@ private extension RouterHub {
 // MARK: - RouterHub.ConcurrentReducer
 private extension RouterHub {
     struct ConcurrentReducer<R>: AnyReducer {
-        let block: (R) async -> Any?
+        let block: ((R) -> Any?)
         
-        func callAsFunction(_ rawValue: R) async -> Any? {
-            await block(rawValue)
+        func callAsFunction(_ rawValue: R) -> Any? {
+            block(rawValue)
+        }
+        
+        init(block:@escaping (R) -> Any?) {
+            self.block = block
         }
     }
 }

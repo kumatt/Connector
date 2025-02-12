@@ -1,46 +1,46 @@
-// EventBus.Swift
+// ActionBus.Swift
 // https://github.com/kumatt/Connector
 // MARK: - 事件总线，1对多的绑定
 
 import Combine
 import Foundation
 
-/// 模块间通用事件的命名空间 EventCenter
-public enum EventCenter { }
+/// 模块间通用事件的命名空间 ActionCenter
+public enum ActionCenter { }
 
 /// 路由遵循的协议，默认实现了注册和获取映射对象的方法
-public protocol AnyEvent {
+public protocol AnyAction {
     /// 发送事件
-    @MainActor static func send(context: EventBus, _ action: Self, object: Any?, file: String, function: String, line: Int)
+    @MainActor static func send(context: ActionBus, _ action: Self, object: Any?, file: String, function: String, line: Int)
     /// 响应事件
-    @MainActor static func sink(context: EventBus, _ receiveValue: @escaping (Self) -> Void) -> AnyCancellable
+    @MainActor static func sink(context: ActionBus, _ receiveValue: @escaping (Self) -> Void) -> AnyCancellable
     /// 响应事件
-    @MainActor static func sink(context: EventBus, _ receiveValue: @escaping (Self, Any?) -> Void) -> AnyCancellable;
+    @MainActor static func sink(context: ActionBus, _ receiveValue: @escaping (Self, Any?) -> Void) -> AnyCancellable;
 }
 
-public extension AnyEvent {
-    @MainActor static func send(context: EventBus, _ action: Self, object: Any? = nil, file: String = #file, function: String = #function, line: Int = #line) where Self: Sendable {
+public extension AnyAction {
+    @MainActor static func send(context: ActionBus, _ action: Self, object: Any? = nil, file: String = #file, function: String = #function, line: Int = #line) where Self: Sendable {
         context.send(action, object: object, file: file, function: function, line: line)
     }
     
-    @MainActor static func sink(context: EventBus, _ receiveValue: @escaping (Self) -> Void) -> AnyCancellable where Self: Sendable  {
+    @MainActor static func sink(context: ActionBus, _ receiveValue: @escaping (Self) -> Void) -> AnyCancellable where Self: Sendable  {
         context.sink(receiveValue: receiveValue)
     }
     
-    @MainActor static func sink(context: EventBus, _ receiveValue: @escaping (Self, Any?) -> Void) -> AnyCancellable where Self: Sendable  {
+    @MainActor static func sink(context: ActionBus, _ receiveValue: @escaping (Self, Any?) -> Void) -> AnyCancellable where Self: Sendable  {
         context.sink(receiveValue: receiveValue)
     }
 }
 
 /// 事件的中心处理
 @MainActor
-public final class EventBus {
+public final class ActionBus {
     /// 目标对象
     public typealias Object = Any
 
     /// 默认的事件管线（单例）
-    /// note：也可自定义 独属于某个模块的EventBus
-    public static let `default` = EventBus()
+    /// note：也可自定义 独属于某个模块的ActionBus
+    public static let `default` = ActionBus()
     
     /// 事件的订阅
     private var actionCancellables: [String: Set<Reducer>] = [:]
@@ -50,7 +50,7 @@ public final class EventBus {
 }
 
 // MARK: - send action
-public extension EventBus {
+public extension ActionBus {
     /// 发送事件 - 仅在开发环境下生效
     /// 如果是在调用方法时创建的Action，也仅在开发环境下创建
     func sendWhenDevelopment<Action>(_ action: @autoclosure () -> Action, object: Any? = nil, file: String = #file, function: String = #function, line: Int = #line) {
@@ -83,7 +83,7 @@ public extension EventBus {
 }
 
 // MARK: - sink action
-public extension EventBus {
+public extension ActionBus {
     /// 处理事件
     /// - Parameter receiveValue: 事件的回调
     /// - Returns: 订阅的生命周期
@@ -118,7 +118,7 @@ public extension EventBus {
 }
 
 // MARK: - sink的最终实现
-private extension EventBus {
+private extension ActionBus {
     /// 处理事件
     /// 订阅某个事件，进行响应
     private func sink<Action: Sendable>(with actionType: Action.Type, reducer: Reducer) -> AnyCancellable {
@@ -137,7 +137,7 @@ private extension EventBus {
 }
 
 // MARK: - 事件监听的封装
-extension EventBus {
+extension ActionBus {
     struct Reducer {
         /// hash tag
         private let id = UUID()
@@ -157,7 +157,7 @@ extension EventBus {
 }
 
 // MARK: - Reducer is Hashable
-extension EventBus.Reducer: Hashable {
+extension ActionBus.Reducer: Hashable {
     // 实现 Hashable 协议
     public static func == (lhs: Self, rhs: Self) -> Bool {
         return lhs.id == rhs.id
